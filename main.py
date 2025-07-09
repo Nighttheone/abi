@@ -45,6 +45,49 @@ class IoTMeasurement(BaseModel):
     device_id: str
     timestamp: Optional[datetime] = None
 
+# New RFID Data Model
+class RFIDData(BaseModel):
+    uid: str
+    type: str
+    device_id: str
+    timestamp: Optional[datetime] = None
+
+# New RFID Endpoint
+@app.post("/iot/rfid")
+async def receive_rfid_data(rfid: RFIDData):
+    try:
+        # Basic validation for non-empty strings
+        if not rfid.uid or not rfid.type or not rfid.device_id:
+            raise HTTPException(status_code=400, detail="UID, type, and device_id cannot be empty")
+        
+        # If no timestamp provided, set to current time
+        if not rfid.timestamp:
+            rfid.timestamp = datetime.utcnow()
+        
+        # Prepare data for Firebase
+        data = {
+            'uid': rfid.uid,
+            'type': rfid.type,
+            'device_id': rfid.device_id,
+            'timestamp': rfid.timestamp.isoformat()
+        }
+        
+        # Save to Firebase Realtime Database
+        ref = db.reference(f'/rfid_data/{rfid.device_id}')
+        new_rfid_ref = ref.push(data) # type: ignore
+        
+        # Prepare response
+        response = {
+            "status": "success",
+            "received_data": data,
+            "firebase_key": new_rfid_ref.key
+        }
+        
+        return response
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing RFID data: {str(e)}")
+
 @app.post("/iot/measurements")
 async def receive_measurement(measurement: IoTMeasurement):
     try:
